@@ -487,7 +487,8 @@ function compactEditWriteLine(
 				: "",
 	);
 	const isError = component.result?.isError === true;
-	const isPending = !component.result || component.isPartial === true;
+	const isPending =
+		component.executionStarted && (!component.result || component.isPartial === true);
 	const icon = isError ? "✗" : isPending ? toolLoadingIcon() : "✓";
 	const iconColor = isError ? "error" : isPending ? "accent" : "success";
 	let statsText = "";
@@ -1065,7 +1066,8 @@ export function installCompactMode(deps: CompactModeInstallDeps): CompactModeHoo
 		}
 		const name = String(this.toolName ?? "");
 		if (EDIT_WRITE_TOOLS.has(name)) {
-			if (!this.result || this.isPartial === true) scheduleAnimation(this);
+			if (this.executionStarted && (!this.result || this.isPartial === true))
+				scheduleAnimation(this);
 			const lines = compactEditWriteLine(this, width, deps.writeMetadata);
 			if (this.expanded !== true) return lines;
 			return compactEditWriteExpandedLines(this, width, deps.writeMetadata);

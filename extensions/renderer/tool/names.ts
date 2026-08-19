@@ -17,6 +17,14 @@ const AGENT_FAMILY_TOOL_NAMES = new Set([
 	"get_subagent_result",
 	"steer_subagent",
 ]);
+const FILE_TOOL_NAMES = new Set(["read", "edit", "write"]);
+
+function fileName(value: unknown): string {
+	const path = String(value ?? "")
+		.replace(/\\/g, "/")
+		.replace(/\/+$/, "");
+	return path.slice(path.lastIndexOf("/") + 1) || path;
+}
 
 /** default-mode（单工具卡）与 grouping（分组卡）在 agent/bash/grep/find/read/fallback 文案上不同。 */
 export type ToolCallSummaryVariant = "default" | "grouping";
@@ -26,6 +34,8 @@ export type ToolCallSummaryOptions = {
 	title?: string;
 	/** 文案变体；缺省 "default"。 */
 	variant?: ToolCallSummaryVariant;
+	/** 单行参数摘要字符上限；缺省 96。 */
+	maxLength?: number;
 };
 
 /**
@@ -41,16 +51,17 @@ export function toolCallSummary(
 ): { main: string; detail: string } {
 	const title = opts.title ?? humanizeToolLabel(toolName);
 	const variant = opts.variant ?? "default";
+	const maxLength = opts.maxLength ?? 96;
+	const summarize = (value: unknown) => oneLine(value, maxLength);
 	if (!args || typeof args !== "object") return { main: title, detail: "" };
 	const name = toolName.toLowerCase();
 	const value = (fallback: string, ...keys: string[]) => {
 		const found = keys.map((key) => args[key]).find((item) => typeof item === "string" && item);
-		// 两处对齐：从头截断，上限 96 字符（oneLine 默认值）。
-		return `${title} ${oneLine(found || fallback, 96)}`;
+		return `${title} ${summarize(found || fallback)}`;
 	};
 
 	if (variant === "default" && AGENT_FAMILY_TOOL_NAMES.has(toolName) && args.agent_id) {
-		return { main: `${title} ${oneLine(args.agent_id, 96)}`, detail: "" };
+		return { main: `${title} ${summarize(args.agent_id)}`, detail: "" };
 	}
 	if (variant === "grouping" && (name === "agent" || name === "agents")) {
 		const displayName = args.subagent_type ?? args.agent_type ?? args.agent;
@@ -104,28 +115,29 @@ export function toolCallSummary(
 		].filter(Boolean);
 		if (variant === "grouping") {
 			return {
-				main: `Read ${oneLine(args.path || "...")}`,
+				main: `Read ${summarize(fileName(args.path) || "...")}`,
 				detail: details.length ? ` (${details.join(", ")})` : "",
 			};
 		}
 		return {
-			main: `${title}${args.path ? ` ${oneLine(args.path, 96)}` : ""}`,
+			main: `${title}${args.path ? ` ${summarize(fileName(args.path))}` : ""}`,
 			detail: details.length ? ` (${details.join(", ")})` : "",
 		};
 	}
 	if (variant === "grouping") {
-		if (toolName === "bash") return { main: `Bash ${oneLine(args.command || "...")}`, detail: "" };
+		if (toolName === "bash")
+			return { main: `Bash ${summarize(args.command || "...")}`, detail: "" };
 		if (toolName === "grep") {
-			const pattern = oneLine(args.pattern || "...");
+			const pattern = summarize(args.pattern || "...");
 			return {
-				main: `Grep ${JSON.stringify(pattern)}${args.path ? ` in ${oneLine(args.path)}` : ""}`,
+				main: `Grep ${JSON.stringify(pattern)}${args.path ? ` in ${summarize(fileName(args.path))}` : ""}`,
 				detail: "",
 			};
 		}
 		if (toolName === "find") {
-			const pattern = oneLine(args.pattern || "...");
+			const pattern = summarize(args.pattern || "...");
 			return {
-				main: `Find ${JSON.stringify(pattern)}${args.path ? ` in ${oneLine(args.path)}` : ""}`,
+				main: `Find ${JSON.stringify(pattern)}${args.path ? ` in ${summarize(fileName(args.path))}` : ""}`,
 				detail: "",
 			};
 		}
@@ -147,7 +159,7 @@ export function toolCallSummary(
 		return {
 			main:
 				preferred !== undefined && preferred !== null && typeof preferred !== "object"
-					? `${title} ${oneLine(preferred, 96)}`
+					? `${title} ${summarize(FILE_TOOL_NAMES.has(name) ? fileName(preferred) : preferred)}`
 					: title,
 			detail: "",
 		};
@@ -162,7 +174,7 @@ export function toolCallSummary(
 		args.name ??
 		args.prompt;
 	return {
-		main: `${title}${preferred === undefined ? "" : ` ${oneLine(preferred)}`}`,
+		main: `${title}${preferred === undefined ? "" : ` ${summarize(preferred)}`}`,
 		detail: "",
 	};
 }

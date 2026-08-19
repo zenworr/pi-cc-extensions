@@ -4,8 +4,10 @@ import {
 	Spacer,
 	truncateToWidth,
 	visibleWidth,
+	wrapTextWithAnsi,
 	type Component,
 } from "@earendil-works/pi-tui";
+import { config } from "../../config/config.ts";
 import { TOOL_LOADING_INTERVAL_MS, toolLoadingIcon } from "../../utils/tool-loading-icon.ts";
 import { isToolTuiFullscreen, showMoreHintText } from "./show-more-hint.ts";
 import { stripAnsi, stripBackgroundAnsi, stripLeadingStatusIcon } from "../../utils/ansi-text.ts";
@@ -142,7 +144,10 @@ export function paddedBackgroundRow(
 }
 
 function toolSummary(tool: any): { main: string; detail: string } {
-	return toolCallSummary(toolName(tool), tool?.args ?? {}, { variant: "grouping" });
+	return toolCallSummary(toolName(tool), tool?.args ?? {}, {
+		variant: "grouping",
+		maxLength: config.disableToolCallTruncation ? Number.MAX_SAFE_INTEGER : undefined,
+	});
 }
 
 function toolNameList(tools: any[]): string {
@@ -158,6 +163,7 @@ type SettledGroupCache = {
 	hover: boolean;
 	theme: unknown;
 	fullscreen: boolean;
+	disableTruncation: boolean;
 	children: readonly unknown[];
 	args: unknown[];
 	results: unknown[];
@@ -252,7 +258,8 @@ export class ToolGroupComponent extends Container {
 			cache.width !== width ||
 			cache.hover !== this.hintHovered ||
 			cache.theme !== this.patch.theme ||
-			cache.fullscreen !== isToolTuiFullscreen()
+			cache.fullscreen !== isToolTuiFullscreen() ||
+			cache.disableTruncation !== config.disableToolCallTruncation
 		) {
 			return;
 		}
@@ -278,6 +285,7 @@ export class ToolGroupComponent extends Container {
 			hover: this.hintHovered,
 			theme: this.patch.theme,
 			fullscreen: isToolTuiFullscreen(),
+			disableTruncation: config.disableToolCallTruncation,
 			children: [...this.children],
 			args: (this.children as any[]).map((tool) => tool?.args),
 			results: (this.children as any[]).map((tool) => tool?.result),
@@ -361,13 +369,25 @@ export class ToolGroupComponent extends Container {
 			const continuation = index === total - 1 ? "  " : "│ ";
 			if (!this._expanded) {
 				const summary = toolSummary(tool);
-				lines.push(
-					truncateToWidth(
-						` ${fg("dim", branch)} ${fg(color, statusIcon(toolStatus))} ${fg("toolTitle", summary.main)}${fg("dim", summary.detail)}`,
-						width,
-						"…",
-					),
-				);
+				const prefix = ` ${fg("dim", branch)} ${fg(color, statusIcon(toolStatus))} `;
+				if (config.disableToolCallTruncation) {
+					const contentWidth = Math.max(1, width - visibleWidth(prefix));
+					const wrapped = wrapTextWithAnsi(`${summary.main}${summary.detail}`, contentWidth);
+					const indent = " ".repeat(visibleWidth(prefix));
+					for (let lineIndex = 0; lineIndex < wrapped.length; lineIndex++) {
+						lines.push(
+							`${lineIndex === 0 ? prefix : indent}${fg("toolTitle", wrapped[lineIndex])}`,
+						);
+					}
+				} else {
+					lines.push(
+						truncateToWidth(
+							`${prefix}${fg("toolTitle", summary.main)}${fg("dim", summary.detail)}`,
+							width,
+							"…",
+						),
+					);
+				}
 				continue;
 			}
 			const rendered = visibleLines(tool.render(Math.max(1, width - 2)));

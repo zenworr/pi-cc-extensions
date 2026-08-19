@@ -15,7 +15,7 @@ export function formatDuration(ms: number): string {
 
 /** 文本单行化：去换行空白，超宽截断加省略号。 */
 export function oneLine(value: unknown, max = 96): string {
-	const text = sanitizeToolResultText(String(value ?? ""), 4096)
+	const text = sanitizeToolResultText(String(value ?? ""), Math.max(4096, max))
 		.replace(/\s+/g, " ")
 		.trim();
 	return text.length > max ? `${text.slice(0, max - 1)}…` : text;

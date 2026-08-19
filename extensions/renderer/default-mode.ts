@@ -5,7 +5,7 @@
  * 生命周期对齐 compact-mode：installDefaultMode → hooks.shutdown。
  */
 import { ToolExecutionComponent } from "@earendil-works/pi-coding-agent";
-import { Text, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { Text, truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import { config, getToolDisplayConfig, type CompactStyleMode } from "../config/config.ts";
 import {
 	COMPONENT_TOOL_RENDER_MODE,
@@ -241,9 +241,14 @@ function createCcstyleTool(
 				visualState === "success"
 					? `${BRIGHT_GREEN}${rawIcon}${ANSI_FG_RESET}`
 					: theme.fg(toolIconColor(context), rawIcon);
-			const summary = toolCallSummary(toolName, args, {
+			const summaryOptions = {
 				title: label === toolName ? humanizeToolLabel(label) : label,
-				variant: "default",
+				variant: "default" as const,
+			};
+			const summary = toolCallSummary(toolName, args, summaryOptions);
+			const fullSummary = toolCallSummary(toolName, args, {
+				...summaryOptions,
+				maxLength: Number.MAX_SAFE_INTEGER,
 			});
 			let writeStatsText = "";
 			let writeStatsStyled = "";
@@ -262,11 +267,19 @@ function createCcstyleTool(
 			const extraText = writeStatsText || summary.detail;
 			const extraStyled = writeStatsStyled || theme.fg("dim", summary.detail);
 			let cachedWidth: number | undefined;
-			let cachedLine: string | undefined;
+			let cachedFullOutput: boolean | undefined;
+			let cachedLines: string[] | undefined;
 			const expanded = Boolean(context?.expanded);
 			return {
 				render(width: number) {
-					if (cachedLine !== undefined && cachedWidth === width) return [cachedLine];
+					const fullOutput = config.disableToolCallTruncation;
+					if (
+						cachedLines !== undefined &&
+						cachedWidth === width &&
+						cachedFullOutput === fullOutput
+					) {
+						return cachedLines;
+					}
 					const viewportWidth = toolViewportWidth(width);
 					// 展开态贴左（外层 Box 已 pad 1）；折叠 self-shell 保留 1 格前导空格
 					const lead = expanded ? "" : " ";
@@ -276,9 +289,21 @@ function createCcstyleTool(
 					);
 					const mainWidth = Math.max(0, callWidth - visibleWidth(extraText));
 					cachedWidth = width;
+					cachedFullOutput = fullOutput;
+					if (fullOutput) {
+						const fullText = `${fullSummary.main}${writeStatsText || fullSummary.detail}`;
+						const wrapped = wrapTextWithAnsi(fullText, Math.max(1, callWidth));
+						const prefix = `${lead}${icon} `;
+						const indent = " ".repeat(visibleWidth(prefix));
+						cachedLines = wrapped.map(
+							(line, index) => `${index === 0 ? prefix : indent}${theme.fg("toolTitle", line)}`,
+						);
+						return cachedLines;
+					}
 					// 纯文本先截断再着色（省略号不带 ANSI）；从头截断，与多 tool 一致
-					cachedLine = `${lead}${icon} ${theme.fg("toolTitle", headTruncateToWidth(summary.main, mainWidth))}${extraStyled}`;
-					return [truncateToWidth(cachedLine, viewportWidth, "")];
+					const cachedLine = `${lead}${icon} ${theme.fg("toolTitle", headTruncateToWidth(summary.main, mainWidth))}${extraStyled}`;
+					cachedLines = [truncateToWidth(cachedLine, viewportWidth, "")];
+					return cachedLines;
 				},
 				invalidate() {},
 			};

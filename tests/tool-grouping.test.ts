@@ -7,6 +7,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import type { AssistantMessage } from "@earendil-works/pi-ai";
 import { Container, Spacer } from "@earendil-works/pi-tui";
+import { config } from "../extensions/config/config.ts";
 import { installToolGrouping, ToolGroupComponent } from "../extensions/renderer/tool/grouping.ts";
 
 initTheme("dark");
@@ -92,6 +93,40 @@ test("mixed tools group across three empty separators while edit/write and conte
 		parent.addChild(tool("bash", "after-content"));
 		assert.equal(parent.children.at(-1).toolCallId, "after-content");
 	} finally {
+		hooks.shutdown();
+	}
+});
+
+test("disabled truncation wraps grouped commands and shows file names", () => {
+	const previous = config.disableToolCallTruncation;
+	config.disableToolCallTruncation = true;
+	const hooks = installToolGrouping(() => true);
+	try {
+		const parent = new Container() as any;
+		const read = tool("read", "long-read", {
+			path: "/Users/example/project/extensions/renderer/tool/diff/diff-component.ts",
+			offset: 1,
+			limit: 140,
+		});
+		const bash = tool("bash", "long-bash", {
+			command:
+				"cd /Users/example/project/extensions/renderer/tool/diff && printf 'full command remains visible' && echo COMMAND_END",
+		});
+		parent.addChild(read);
+		parent.addChild(bash);
+		read.updateResult({ content: [], isError: false });
+		bash.updateResult({ content: [], isError: false });
+		const rendered = (parent.children[0] as ToolGroupComponent)
+			.render(48)
+			.map((line: string) => line.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, ""));
+		const text = rendered.join("\n");
+		assert.match(text, /Read diff-component\.ts/);
+		assert.doesNotMatch(text, /Read \/Users\/example/);
+		assert.match(text, /COMMAND_END/);
+		assert.doesNotMatch(text, /(?:Read|Bash)[^\n]*…/);
+		assert.ok(rendered.filter((line: string) => line.trim()).length > 3, "command wraps");
+	} finally {
+		config.disableToolCallTruncation = previous;
 		hooks.shutdown();
 	}
 });

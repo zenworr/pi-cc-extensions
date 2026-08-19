@@ -496,8 +496,10 @@ test("write collapsed stats-only hint switches to white text on hover", () => {
 
 test("default-mode write collapsed uses title stats and created hint", () => {
 	const previousMode = config.mode;
+	const previousTruncation = config.disableToolCallTruncation;
 	const store = new WriteExecutionMetadataStore();
 	config.mode = "on";
+	config.disableToolCallTruncation = false;
 	const hooks = installDefaultMode(store);
 	try {
 		const write = new ToolExecutionComponent(
@@ -519,6 +521,7 @@ test("default-mode write collapsed uses title stats and created hint", () => {
 		assert.doesNotMatch(text, /▌/);
 	} finally {
 		config.mode = previousMode;
+		config.disableToolCallTruncation = previousTruncation;
 		hooks.shutdown();
 	}
 });
@@ -588,7 +591,10 @@ test("default-mode renders complete tool output when truncation is disabled", ()
 		const read = new ToolExecutionComponent(
 			"read",
 			"read-full-output",
-			{ path: "sample.txt", query: `${"q".repeat(9_000)}QUERY_END` },
+			{
+				path: "/Users/example/project/very/long/path/sample.txt",
+				query: `${"q".repeat(9_000)}QUERY_END`,
+			},
 			{},
 			undefined,
 			{ theme, requestRender() {}, setStatus() {} } as any,
@@ -597,10 +603,29 @@ test("default-mode renders complete tool output when truncation is disabled", ()
 		const body = Array.from({ length: 1_000 }, (_, index) => `output line ${index}`).join("\n");
 		read.updateResult({ content: [{ type: "text", text: body }], isError: false });
 		const text = output(read, 120).join("\n");
+		assert.match(text, /Read sample\.txt/);
+		assert.doesNotMatch(text, /Read \/Users\/example/);
 		assert.match(text, /QUERY_END/);
 		assert.match(text, /output line 0/);
 		assert.match(text, /output line 999/);
 		assert.doesNotMatch(text, /more lines/);
+
+		const bash = new ToolExecutionComponent(
+			"bash",
+			"bash-full-call",
+			{
+				command:
+					"cd /Users/example/project/very/long/path && printf 'full command remains visible' && echo COMMAND_END",
+			},
+			{},
+			undefined,
+			{ theme, requestRender() {}, setStatus() {} } as any,
+			process.cwd(),
+		) as any;
+		bash.markExecutionStarted();
+		const bashCall = output(bash, 48).join("\n");
+		assert.match(bashCall, /COMMAND_END/);
+		assert.doesNotMatch(bashCall, /…/);
 	} finally {
 		config.mode = previousMode;
 		config.disableToolCallTruncation = previousTruncation;

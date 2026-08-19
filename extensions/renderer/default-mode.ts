@@ -173,7 +173,9 @@ function renderExpandedTaskResult(
 	if (toolName === "TaskList") {
 		const tasks = parseTaskList(text);
 		if (!tasks.length) return undefined;
-		const limit = Math.max(1, config.expandedPreviewMaxLines);
+		const limit = config.disableToolCallTruncation
+			? Number.MAX_SAFE_INTEGER
+			: Math.max(1, config.expandedPreviewMaxLines);
 		const rows = tasks.slice(0, limit).map((task) => {
 			const color =
 				task.status === "completed"
@@ -321,8 +323,24 @@ function createCcstyleTool(
 				if (richResult) return expanded ? richResult : insetComponent(richResult);
 			}
 
-			const text = textFromResult(result, expanded);
+			const fullOutput = config.disableToolCallTruncation;
+			const text = textFromResult(
+				result,
+				expanded || fullOutput,
+				fullOutput ? Number.MAX_SAFE_INTEGER : undefined,
+			);
 			const args = context?.args;
+			if (fullOutput) {
+				return renderExpandedToolResult(
+					text || "",
+					theme,
+					Boolean(isError),
+					context?.lastComponent,
+					args,
+					context,
+					true,
+				);
+			}
 			if (expanded) {
 				const taskResult = renderExpandedTaskResult(toolName, text, theme, Boolean(isError));
 				if (taskResult) return taskResult;

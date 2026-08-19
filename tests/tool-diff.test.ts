@@ -7,13 +7,17 @@ import { visibleWidth } from "@earendil-works/pi-tui";
 
 import { ToolExecutionComponent, initTheme } from "@earendil-works/pi-coding-agent";
 import { shouldRenderRichDiff } from "../extensions/renderer/index.ts";
-import { config } from "../extensions/config/config.ts";
+import {
+	config,
+	DEFAULT_CONFIG,
+	getToolDisplayConfig,
+	normalizeConfig,
+} from "../extensions/config/config.ts";
 import { installDefaultMode } from "../extensions/renderer/default-mode.ts";
 import {
 	renderEditDiffResult,
 	renderWriteDiffResult,
 } from "../extensions/renderer/tool/diff/diff-renderer.ts";
-import { normalizeConfig } from "../extensions/config/config.ts";
 
 initTheme("dark");
 import {
@@ -526,6 +530,82 @@ test("normalizeConfig defaults writeDiffCollapsedLines to 0 and allows explicit 
 	assert.equal(normalizeConfig({ editDiffCollapsedLines: 48 }).writeDiffCollapsedLines, 0);
 	assert.equal(normalizeConfig({ diffCollapsedLines: 48 }).editDiffCollapsedLines, 48);
 	assert.equal(normalizeConfig({ writeDiffCollapsedLines: -3 }).writeDiffCollapsedLines, 0);
+});
+
+test("tool call truncation remains enabled by default", () => {
+	assert.equal(normalizeConfig({}).disableToolCallTruncation, false);
+	assert.equal(
+		normalizeConfig({ disableToolCallTruncation: true }).disableToolCallTruncation,
+		true,
+	);
+	assert.equal(
+		normalizeConfig({ disableToolCallTruncation: "true" }).disableToolCallTruncation,
+		false,
+	);
+});
+
+test("disabled tool call truncation removes all diff line limits", () => {
+	const display = getToolDisplayConfig({
+		...DEFAULT_CONFIG,
+		disableToolCallTruncation: true,
+	});
+	assert.equal(display.disableToolCallTruncation, true);
+	assert.equal(display.editDiffCollapsedLines, Number.MAX_SAFE_INTEGER);
+	assert.equal(display.writeDiffCollapsedLines, Number.MAX_SAFE_INTEGER);
+	assert.equal(display.expandedPreviewMaxLines, Number.MAX_SAFE_INTEGER);
+});
+
+test("disabled tool call truncation renders the complete collapsed write diff", () => {
+	const content = Array.from({ length: 60 }, (_, index) => `const value${index} = ${index}`).join(
+		"\n",
+	);
+	const component = renderWriteDiffResult(
+		content,
+		{
+			expanded: false,
+			filePath: "sample.ts",
+			fileExistedBeforeWrite: false,
+		},
+		getToolDisplayConfig({ ...DEFAULT_CONFIG, disableToolCallTruncation: true }),
+		theme,
+		"",
+	);
+	const text = output(component, 120)
+		.join("\n")
+		.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "");
+	assert.match(text, /const value0 = 0/);
+	assert.match(text, /const value59 = 59/);
+	assert.doesNotMatch(text, /more diff lines|click to show more/);
+});
+
+test("default-mode renders complete tool output when truncation is disabled", () => {
+	const previousMode = config.mode;
+	const previousTruncation = config.disableToolCallTruncation;
+	config.mode = "on";
+	config.disableToolCallTruncation = true;
+	const hooks = installDefaultMode(new WriteExecutionMetadataStore());
+	try {
+		const read = new ToolExecutionComponent(
+			"read",
+			"read-full-output",
+			{ path: "sample.txt", query: `${"q".repeat(9_000)}QUERY_END` },
+			{},
+			undefined,
+			{ theme, requestRender() {}, setStatus() {} } as any,
+			process.cwd(),
+		) as any;
+		const body = Array.from({ length: 1_000 }, (_, index) => `output line ${index}`).join("\n");
+		read.updateResult({ content: [{ type: "text", text: body }], isError: false });
+		const text = output(read, 120).join("\n");
+		assert.match(text, /QUERY_END/);
+		assert.match(text, /output line 0/);
+		assert.match(text, /output line 999/);
+		assert.doesNotMatch(text, /more lines/);
+	} finally {
+		config.mode = previousMode;
+		config.disableToolCallTruncation = previousTruncation;
+		hooks.shutdown();
+	}
 });
 
 test("third-party write ownership prevents registration", () => {

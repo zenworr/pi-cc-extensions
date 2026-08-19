@@ -43,6 +43,7 @@ export function displayConfigCacheKey(config: ToolDisplayConfig): string {
 		String(config.writeDiffCollapsedLines),
 		config.diffWordWrap ? "1" : "0",
 		String(config.expandedPreviewMaxLines),
+		config.disableToolCallTruncation ? "1" : "0",
 	].join(":");
 }
 

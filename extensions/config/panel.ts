@@ -327,6 +327,15 @@ export async function showCcstylePanel(
 			submenu: (_current: string, closeSubmenu: (selected?: string) => void) =>
 				buildNumberInputSubmenu(theme, expandedMaxSetting, closeSubmenu),
 		};
+		const disableToolCallTruncationSetting = {
+			id: "disableToolCallTruncation",
+			label: "Disable tool call truncation",
+			description: config.disableToolCallTruncation
+				? "Show complete tool outputs and diffs."
+				: "Limit tool outputs and diffs using the configured preview sizes.",
+			currentValue: config.disableToolCallTruncation ? "on" : "off",
+			values: ["on", "off"],
+		};
 		const thinkingTitleSetting = {
 			id: "useSummaryTitlesAsThinkingTitle",
 			label: "Summary title",
@@ -507,6 +516,12 @@ export async function showCcstylePanel(
 					});
 					expandedMaxSetting.currentValue = String(config.expandedPreviewMaxLines);
 					break;
+				case "disableToolCallTruncation":
+					updateConfig({ disableToolCallTruncation: value === "on" });
+					disableToolCallTruncationSetting.description = config.disableToolCallTruncation
+						? "Show complete tool outputs and diffs."
+						: "Limit tool outputs and diffs using the configured preview sizes.";
+					break;
 				case "useSummaryTitlesAsThinkingTitle":
 					updateConfig({ useSummaryTitlesAsThinkingTitle: value === "on" });
 					break;
@@ -571,6 +586,7 @@ export async function showCcstylePanel(
 					writeDiffCollapsedSetting,
 					diffWordWrapSetting,
 					expandedMaxSetting,
+					disableToolCallTruncationSetting,
 				],
 			},
 			{

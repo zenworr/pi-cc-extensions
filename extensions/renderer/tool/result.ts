@@ -32,19 +32,19 @@ function rawTextFromResult(result: any): string {
 		: "";
 }
 
-function detailsFromResult(result: any): string {
+function detailsFromResult(result: any, maxChars = 16_384): string {
 	if (result?.details === undefined) return "";
 	const details =
 		typeof result.details === "string"
 			? result.details
 			: inspect(result.details, { depth: 8, breakLength: 100, compact: false });
-	return sanitizeToolResultText(details, 16_384);
+	return sanitizeToolResultText(details, maxChars);
 }
 
-export function textFromResult(result: any, expanded = false): string {
+export function textFromResult(result: any, expanded = false, maxChars = 16_384): string {
 	// Compact previews only need short text; bound sanitize work.
-	const content = sanitizeToolResultText(rawTextFromResult(result), 16_384);
-	const details = detailsFromResult(result);
+	const content = sanitizeToolResultText(rawTextFromResult(result), maxChars);
+	const details = detailsFromResult(result, maxChars);
 	if (!content) return details;
 	if (!expanded || !details || details === content) return content;
 	return `${content}\nDetails:\n${details}`;
@@ -673,9 +673,12 @@ export function renderExpandedToolResult(
 	/** mode=on 展开卡贴左；compact 等保持默认前导空格 */
 	flushLeft = false,
 ): ExpandedToolIoView | ExpandedToolResultText | Text {
-	const inputBody = formatToolInputArgs(args);
+	const maxChars = config.disableToolCallTruncation ? Number.MAX_SAFE_INTEGER : 8_000;
+	const inputBody = formatToolInputArgs(args, maxChars);
 	const outputBody = body;
-	const maxLines = config.expandedPreviewMaxLines;
+	const maxLines = config.disableToolCallTruncation
+		? Number.MAX_SAFE_INTEGER
+		: config.expandedPreviewMaxLines;
 
 	// Prefer structured Input/Output when we have args or non-empty output.
 	if (inputBody.trim() || outputBody.trim()) {

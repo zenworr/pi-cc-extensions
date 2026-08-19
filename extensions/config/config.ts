@@ -20,6 +20,7 @@ export interface ToolDisplayConfig {
 	writeDiffCollapsedLines: number;
 	diffWordWrap: boolean;
 	expandedPreviewMaxLines: number;
+	disableToolCallTruncation: boolean;
 }
 
 export const DEFAULT_TOOL_DISPLAY_CONFIG: ToolDisplayConfig = {
@@ -40,6 +41,7 @@ export const DEFAULT_TOOL_DISPLAY_CONFIG: ToolDisplayConfig = {
 	 * Raise via /ccstyle → Diff → Expanded max lines when reviewing large dumps.
 	 */
 	expandedPreviewMaxLines: 40,
+	disableToolCallTruncation: false,
 };
 
 export type Config = {
@@ -52,6 +54,7 @@ export type Config = {
 	writeDiffCollapsedLines: number;
 	diffWordWrap: boolean;
 	expandedPreviewMaxLines: number;
+	disableToolCallTruncation: boolean;
 	useSummaryTitlesAsThinkingTitle: boolean;
 	previewLines: number;
 	animationIntervalMs: number;
@@ -104,6 +107,7 @@ export const DEFAULT_CONFIG: Config = {
 	writeDiffCollapsedLines: DEFAULT_TOOL_DISPLAY_CONFIG.writeDiffCollapsedLines,
 	diffWordWrap: DEFAULT_TOOL_DISPLAY_CONFIG.diffWordWrap,
 	expandedPreviewMaxLines: DEFAULT_TOOL_DISPLAY_CONFIG.expandedPreviewMaxLines,
+	disableToolCallTruncation: false,
 	useSummaryTitlesAsThinkingTitle: true,
 	previewLines: 3,
 	animationIntervalMs: 90,
@@ -190,6 +194,7 @@ export function normalizeConfig(input: unknown): Config {
 			10,
 			50_000,
 		),
+		disableToolCallTruncation: source.disableToolCallTruncation === true,
 		useSummaryTitlesAsThinkingTitle: source.useSummaryTitlesAsThinkingTitle !== false,
 		previewLines: pickPositiveInt(
 			source.previewLines,
@@ -222,14 +227,22 @@ export function getCompactThinkingConfig(source: Config = config): CompactThinki
 }
 
 export function getToolDisplayConfig(source: Config = config): ToolDisplayConfig {
+	const maxLines = source.disableToolCallTruncation
+		? Number.MAX_SAFE_INTEGER
+		: source.expandedPreviewMaxLines;
 	return {
 		diffViewMode: source.diffViewMode,
 		diffIndicatorMode: source.diffIndicatorMode,
 		diffSplitMinWidth: source.diffSplitMinWidth,
-		editDiffCollapsedLines: source.editDiffCollapsedLines,
-		writeDiffCollapsedLines: source.writeDiffCollapsedLines,
+		editDiffCollapsedLines: source.disableToolCallTruncation
+			? Number.MAX_SAFE_INTEGER
+			: source.editDiffCollapsedLines,
+		writeDiffCollapsedLines: source.disableToolCallTruncation
+			? Number.MAX_SAFE_INTEGER
+			: source.writeDiffCollapsedLines,
 		diffWordWrap: source.diffWordWrap,
-		expandedPreviewMaxLines: source.expandedPreviewMaxLines,
+		expandedPreviewMaxLines: maxLines,
+		disableToolCallTruncation: source.disableToolCallTruncation,
 	};
 }
 
@@ -248,6 +261,7 @@ export function formatConfigStatus(source: Config = config): string {
 		`writeCollapsed=${source.writeDiffCollapsedLines}`,
 		`diffWordWrap=${source.diffWordWrap ? "on" : "off"}`,
 		`expandedMax=${source.expandedPreviewMaxLines}`,
+		`toolTruncation=${source.disableToolCallTruncation ? "disabled" : "enabled"}`,
 		`thinkingTitle=${source.useSummaryTitlesAsThinkingTitle ? "summary" : "default"}`,
 		`thinkingPreview=${source.previewLines}`,
 		`thinkingAnimation=${source.animationIntervalMs}ms`,

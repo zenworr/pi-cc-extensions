@@ -19,11 +19,13 @@ const AGENT_FAMILY_TOOL_NAMES = new Set([
 ]);
 const FILE_TOOL_NAMES = new Set(["read", "edit", "write"]);
 
-function fileName(value: unknown): string {
+function filePathLabel(value: unknown): string {
 	const path = String(value ?? "")
 		.replace(/\\/g, "/")
 		.replace(/\/+$/, "");
-	return path.slice(path.lastIndexOf("/") + 1) || path;
+	const parts = path.split("/").filter(Boolean);
+	if (parts.length <= 3) return parts.join("/");
+	return `.../${parts.slice(-3).join("/")}`;
 }
 
 /** default-mode（单工具卡）与 grouping（分组卡）在 agent/bash/grep/find/read/fallback 文案上不同。 */
@@ -115,12 +117,12 @@ export function toolCallSummary(
 		].filter(Boolean);
 		if (variant === "grouping") {
 			return {
-				main: `Read ${summarize(fileName(args.path) || "...")}`,
+				main: `Read ${summarize(filePathLabel(args.path) || "...")}`,
 				detail: details.length ? ` (${details.join(", ")})` : "",
 			};
 		}
 		return {
-			main: `${title}${args.path ? ` ${summarize(fileName(args.path))}` : ""}`,
+			main: `${title}${args.path ? ` ${summarize(filePathLabel(args.path))}` : ""}`,
 			detail: details.length ? ` (${details.join(", ")})` : "",
 		};
 	}
@@ -130,14 +132,14 @@ export function toolCallSummary(
 		if (toolName === "grep") {
 			const pattern = summarize(args.pattern || "...");
 			return {
-				main: `Grep ${JSON.stringify(pattern)}${args.path ? ` in ${summarize(fileName(args.path))}` : ""}`,
+				main: `Grep ${JSON.stringify(pattern)}${args.path ? ` in ${summarize(filePathLabel(args.path))}` : ""}`,
 				detail: "",
 			};
 		}
 		if (toolName === "find") {
 			const pattern = summarize(args.pattern || "...");
 			return {
-				main: `Find ${JSON.stringify(pattern)}${args.path ? ` in ${summarize(fileName(args.path))}` : ""}`,
+				main: `Find ${JSON.stringify(pattern)}${args.path ? ` in ${summarize(filePathLabel(args.path))}` : ""}`,
 				detail: "",
 			};
 		}
@@ -159,7 +161,7 @@ export function toolCallSummary(
 		return {
 			main:
 				preferred !== undefined && preferred !== null && typeof preferred !== "object"
-					? `${title} ${summarize(FILE_TOOL_NAMES.has(name) ? fileName(preferred) : preferred)}`
+					? `${title} ${summarize(FILE_TOOL_NAMES.has(name) ? filePathLabel(preferred) : preferred)}`
 					: title,
 			detail: "",
 		};

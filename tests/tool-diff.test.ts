@@ -603,7 +603,7 @@ test("default-mode renders complete tool output when truncation is disabled", ()
 		const body = Array.from({ length: 1_000 }, (_, index) => `output line ${index}`).join("\n");
 		read.updateResult({ content: [{ type: "text", text: body }], isError: false });
 		const text = output(read, 120).join("\n");
-		assert.match(text, /Read sample\.txt/);
+		assert.match(text, /Read \.\.\.\/long\/path\/sample\.txt/);
 		assert.doesNotMatch(text, /Read \/Users\/example/);
 		assert.match(text, /QUERY_END/);
 		assert.match(text, /output line 0/);

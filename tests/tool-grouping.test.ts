@@ -97,7 +97,7 @@ test("mixed tools group across three empty separators while edit/write and conte
 	}
 });
 
-test("disabled truncation wraps grouped commands and shows file names", () => {
+test("disabled truncation wraps grouped commands and shows file path tails", () => {
 	const previous = config.disableToolCallTruncation;
 	config.disableToolCallTruncation = true;
 	const hooks = installToolGrouping(() => true);
@@ -120,7 +120,7 @@ test("disabled truncation wraps grouped commands and shows file names", () => {
 			.render(48)
 			.map((line: string) => line.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, ""));
 		const text = rendered.join("\n");
-		assert.match(text, /Read diff-component\.ts/);
+		assert.match(text, /Read \.\.\.\/tool\/diff\/diff-component\.ts/);
 		assert.doesNotMatch(text, /Read \/Users\/example/);
 		assert.match(text, /COMMAND_END/);
 		assert.doesNotMatch(text, /(?:Read|Bash)[^\n]*…/);
